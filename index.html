@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Election Manifestos</title>
+    <style>
+        /* CSS Styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 50px;
+            background-image: url('parliament.jpg'); /* Replace with your image path */
+            background-size: cover;
+            background-position: center;
+            color: white;
+            z-index: 10; /* Ensure header is above other content */
+            position: relative;
+        }
+
+        .header-image img {
+            height: 100px; /* Adjust the size as needed */
+            margin-left: 20px; /* Optional: Adds space between the logo and the new image */
+        }
+
+        .logo-container img {
+            height: 70px;
+        }
+
+        .filter-container {
+            text-align: right;
+            z-index: 15; /* Ensure filters are above section titles */
+            position: relative;
+        }
+
+        .multiselect {
+            display: inline-block;
+            margin-right: 20px;
+            position: relative;
+        }
+
+        .selectBox {
+            display: inline-block;
+            border: 1px solid #ccc;
+            padding: 5px;
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        .checkboxes {
+            display: none;
+            border: 1px solid #ccc;
+            background-color: white;
+            position: absolute;
+            z-index: 1;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+        }
+
+        .checkboxes label {
+            display: block;
+            padding: 5px;
+            cursor: pointer;
+            color: black; /* Set the text color to black */
+        }
+
+        .checkboxes label:hover {
+            background-color: #f0f0f0;
+        }
+
+        .topic-section {
+            margin-bottom: 40px;
+            position: relative;
+            padding-top: 40px; /* Space for the sticky title */
+        }
+
+        .section-title-container {
+            position: sticky;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 5; /* Ensure titles are above the cards but below filters */
+            background-color: #f0f0f0;
+            border-bottom: 2px solid #ccc;
+            padding: 10px;
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        .candidate-card-container {
+            overflow-x: auto; /* Enable horizontal scrolling */
+            white-space: nowrap; /* Prevent wrapping */
+            padding: 20px;
+        }
+
+        .candidate-card {
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px; /* Centres the image horizontally */
+            display: inline-block;
+            vertical-align: top;
+            text-align: left;
+            width: 200px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            white-space: normal; /* Ensure card content wraps within the card */
+        }
+
+        .candidate-card img {
+            display: block;
+            margin: 0 auto 10px auto; /* Centres the image and adds margin below it */
+            width: 100px;
+            height: 100px;
+            border-radius: 100%;
+        }
+
+        .party-symbol {
+            text-align: right; /* Aligns the image to the right */
+        }
+
+        .party-symbol img {
+            width: 30px;
+            height: 30px;
+        }
+
+        .reference-button {
+            display: block;
+            margin-top: 10px;
+            padding: 8px 16px;
+            background-color: #eaebe7;
+            color: rgb(22, 22, 22);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .reference-button:hover {
+            background-color: #fdfefa;
+        }
+
+        .promise-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .promise-page {
+            font-size: 0.9em;
+            color: gray;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header container with logo and filters -->
+    <div class="header-container">
+        <div class="logo-container">
+            <img src="logo.png" alt="Logo"> <!-- Replace with your logo path -->
+        </div>
+        <div class="filter-container">
+            <div class="multiselect">
+                <div class="selectBox" onclick="toggleCheckboxes('candidate-checkboxes')">
+                    <select>
+                        <option>Select Candidates</option>
+                    </select>
+                    <div class="overSelect"></div>
+                </div>
+                <div id="candidate-checkboxes" class="checkboxes"></div>
+            </div>
+
+            <div class="multiselect">
+                <div class="selectBox" onclick="toggleCheckboxes('topic-checkboxes')">
+                    <select>
+                        <option>Select Topics</option>
+                    </select>
+                    <div class="overSelect"></div>
+                </div>
+                <div id="topic-checkboxes" class="checkboxes"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dynamic content sections will be inserted here -->
+    <div id="content"></div>
+
+    <!-- Import D3.js and SheetJS libraries -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.4/xlsx.full.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

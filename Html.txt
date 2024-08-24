@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Election Manifestos</title>
+    <style>
+        /* Example CSS styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 50px;
+            background-image: url('parliament.jpg'); /* Replace with your image path */
+            background-size: cover;
+            background-position: center;
+            color: white;
+            background-color: #f7cccc;
+            color: white;
+        }
+
+        .header-image img {
+            height: 100px; /* Adjust the size as needed */
+            margin-left: 20px; /* Optional: Adds space between the logo and the new image */
+        }
+
+        .logo-container img {
+            height: 50px;
+        }
+
+        .filter-container {
+            text-align: right;
+        }
+
+        .multiselect {
+            display: inline-block;
+            margin-right: 20px;
+            position: relative;
+        }
+
+        .selectBox {
+            display: inline-block;
+            border: 1px solid #ccc;
+            padding: 5px;
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        .checkboxes {
+            display: none;
+            border: 1px solid #ccc;
+            background-color: white;
+            position: absolute;
+            z-index: 1;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+        }
+
+        .checkboxes label {
+            display: block;
+            padding: 5px;
+            cursor: pointer;
+            color: black; /* Set the text color to black */
+        }
+
+        .checkboxes label:hover {
+            background-color: #f0f0f0;
+        }
+
+        .candidate-card {
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px;
+            display: inline-block;
+            vertical-align: top;
+            width: 200px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .candidate-card img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+        }
+
+        .party-symbol img {
+            width: 30px;
+            height: 30px;
+        }
+
+        .section {
+            padding: 20px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header container with logo and filters -->
+    <div class="header-container">
+        <div class="logo-container">
+            <img src="logo.png" alt="Logo"> <!-- Replace with your logo path -->
+        </div>
+        <div class="filter-container">
+            <div class="multiselect">
+                <div class="selectBox" onclick="toggleCheckboxes('candidate-checkboxes')">
+                    <select>
+                        <option>Select Candidates</option>
+                    </select>
+                    <div class="overSelect"></div>
+                </div>
+                <div id="candidate-checkboxes" class="checkboxes"></div>
+            </div>
+
+            <div class="multiselect">
+                <div class="selectBox" onclick="toggleCheckboxes('topic-checkboxes')">
+                    <select>
+                        <option>Select Topics</option>
+                    </select>
+                    <div class="overSelect"></div>
+                </div>
+                <div id="topic-checkboxes" class="checkboxes"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dynamic content sections will be inserted here -->
+    <div id="content"></div>
+
+    <!-- Import D3.js and SheetJS libraries -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.4/xlsx.full.min.js"></script>
+
+    <script>
+        let candidates = [];
+        let topics = [];
+
+        function loadExcelFromPath(filePath) {
+            fetch(filePath)
+                .then(response => response.arrayBuffer())
+                .then(data => {
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+                    // Process the Excel data
+                    processExcelData(jsonData);
+                })
+                .catch(error => console.error('Error loading Excel file:', error));
+        }
+
+        // Function to process Excel data and update candidates and topics
+        function processExcelData(data) {
+            candidates = [];
+            topics = new Set();  // Use a set to handle unique topics automatically
+
+            data.forEach(row => {
+                const candidateName = row.name;
+                const image = row.image;
+                const partySymbol = row.partySymbol;
+                const title = row.title;
+                const description = row.description;
+                const page = row.page;
+                const link = row.link;
+                const topic = row.topic;
+
+                topics.add(topic); // Add topic to the set (duplicates are automatically handled)
+
+                let candidate = candidates.find(c => c.name === candidateName);
+                if (!candidate) {
+                    candidate = {
+                        name: candidateName,
+                        image: image,
+                        partySymbol: partySymbol,
+                        promises: []
+                    };
+                    candidates.push(candidate);
+                }
+                candidate.promises.push({ title, description, page, link, topic });
+            });
+
+            topics = Array.from(topics);
+
+            // Create sections for each topic
+            createSectionsForTopics(topics);
+
+            // Update the UI with new candidates and topics
+            populateCandidateCheckboxes(candidates);
+            populateTopicCheckboxes(topics);
+            updateDisplay();
+        }
+
+        // Function to create sections for each topic
+        function createSectionsForTopics(topics) {
+            const contentContainer = d3.select("#content");
+            contentContainer.html(''); // Clear existing content
+
+            topics.forEach(topic => {
+                const section = contentContainer.append("div")
+                    .attr("id", `${topic.toLowerCase().replace(/\s+/g, '-')}-section`)
+                    .attr("class", "section");
+
+                section.append("h2")
+                    .attr("class", "section-title")
+                    .text(topic);
+
+                section.append("div")
+                    .attr("id", `${topic.toLowerCase().replace(/\s+/g, '-')}`);
+            });
+        }
+
+        function populateCandidateCheckboxes(candidates) {
+            const candidateCheckboxesContainer = d3.select("#candidate-checkboxes");
+            candidateCheckboxesContainer.html(''); // Clear existing content
+
+            // "All" option
+            const allLabel = candidateCheckboxesContainer.append("label");
+            allLabel.append("input")
+                .attr("type", "checkbox")
+                .attr("value", "all")
+                .on("change", function() {
+                    const isChecked = this.checked;
+                    candidateCheckboxesContainer.selectAll("input").property("checked", isChecked);
+                    updateDisplay();
+                });
+            allLabel.append("span").text("All");
+            allLabel.append("br");
+
+            candidates.forEach(candidate => {
+                const checkboxLabel = candidateCheckboxesContainer.append("label");
+                checkboxLabel.append("input")
+                    .attr("type", "checkbox")
+                    .attr("value", candidate.name)
+                    .on("change", updateDisplay);
+                checkboxLabel.append("span").text(candidate.name);
+                checkboxLabel.append("br");
+            });
+        }
+
+        function populateTopicCheckboxes(topics) {
+            const topicCheckboxesContainer = d3.select("#topic-checkboxes");
+            topicCheckboxesContainer.html(''); // Clear existing content
+
+            // "All" option
+            const allLabel = topicCheckboxesContainer.append("label");
+            allLabel.append("input")
+                .attr("type", "checkbox")
+                .attr("value", "all")
+                .on("change", function() {
+                    const isChecked = this.checked;
+                    topicCheckboxesContainer.selectAll("input").property("checked", isChecked);
+                    updateDisplay();
+                });
+            allLabel.append("span").text("All");
+            allLabel.append("br");
+
+            topics.forEach(topic => {
+                const checkboxLabel = topicCheckboxesContainer.append("label");
+                checkboxLabel.append("input")
+                    .attr("type", "checkbox")
+                    .attr("value", topic)
+                    .on("change", updateDisplay);
+                checkboxLabel.append("span").text(topic);
+                checkboxLabel.append("br");
+            });
+        }
+
+        function updateDisplay() {
+            const selectedCandidates = [];
+            d3.selectAll("#candidate-checkboxes input:checked").each(function() {
+                if (this.value !== "all") {
+                    selectedCandidates.push(this.value);
+                }
+            });
+
+            const selectedTopics = [];
+            d3.selectAll("#topic-checkboxes input:checked").each(function() {
+                if (this.value !== "all") {
+                    selectedTopics.push(this.value);
+                }
+            });
+
+            let filteredCandidates = candidates;
+
+            if (selectedCandidates.length > 0) {
+                filteredCandidates = filteredCandidates.filter(candidate => selectedCandidates.includes(candidate.name));
+            }
+
+            topics.forEach(topic => {
+                const sectionId = `#${topic.toLowerCase().replace(/\s+/g, '-')}`;
+                d3.select(sectionId).selectAll(".candidate-card").remove(); // Clear existing cards
+            });
+
+            filteredCandidates.forEach(candidate => {
+                candidate.promises.forEach(promise => {
+                    if (selectedTopics.length === 0 || selectedTopics.includes(promise.topic)) {
+                        createCandidateCard(`#${promise.topic.toLowerCase().replace(/\s+/g, '-')}`, candidate, promise, promise.topic.toLowerCase().replace(/\s+/g, '-'));
+                    }
+                });
+            });
+
+            topics.forEach(topic => {
+                const sectionId = `#${topic.toLowerCase().replace(/\s+/g, '-')}-section`;
+                if (d3.select(`#${topic.toLowerCase().replace(/\s+/g, '-')}`).selectAll(".candidate-card").empty()) {
+                    d3.select(sectionId).classed("hidden", true);
+                } else {
+                    d3.select(sectionId).classed("hidden", false);
+                }
+            });
+        }
+
+        function createCandidateCard(containerId, candidate, promise, promiseClass) {
+            const container = d3.select(containerId).append("div")
+                .attr("class", "candidate-card");
+
+            container.append("img")
+                .attr("src", candidate.image)
+                .attr("alt", candidate.name);
+
+            container.append("div")
+                .attr("class", "party-symbol")
+                .append("img")
+                .attr("src", candidate.partySymbol)
+                .attr("alt", `${candidate.name} party symbol`);
+
+            container.append("h3")
+                .text(candidate.name);
+
+            container.append("div")
+                .attr("class", `promise ${promiseClass}`)
+                .html(`<a href="${promise.link}">${promise.title} - ${promise.page}</a><p>${promise.description}</p>`);
+        }
+
+        function toggleCheckboxes(id) {
+            const checkboxes = document.getElementById(id);
+            checkboxes.style.display = checkboxes.style.display === "block" ? "none" : "block";
+        }
+
+        // Load the Excel file from the specified path
+        loadExcelFromPath('candidates_data.xlsx'); // Replace with the actual path to your Excel file
+    </script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+// Include this in your HTML file
+// <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.4/xlsx.full.min.js"></script>
+// <script src="https://d3js.org/d3.v7.min.js"></script>
+
+function loadExcelFromPath(filePath) {
+    fetch(filePath)
+        .then(response => response.arrayBuffer())
+        .then(data => {
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+            // Process the Excel data
+            processExcelData(jsonData);
+        })
+        .catch(error => console.error('Error loading Excel file:', error));
+}
+
+// Function to process Excel data and update candidates and topics
+function processExcelData(data) {
+    let candidates = [];
+    let topics = new Set();  // Use a set to handle unique topics automatically
+
+    data.forEach(row => {
+        const candidateName = row.name;
+        const image = row.image;
+        const partySymbol = row.partySymbol;
+        const title = row.title;
+        const description = row.description;
+        const page = row.page;
+        const link = row.link;
+        const topic = row.topic;
+
+        topics.add(topic); // Add topic to the set (duplicates are automatically handled)
+
+        let candidate = candidates.find(c => c.name === candidateName);
+        if (!candidate) {
+            candidate = {
+                name: candidateName,
+                image: image,
+                partySymbol: partySymbol,
+                promises: []
+            };
+            candidates.push(candidate);
+        }
+        candidate.promises.push({ title, description, page, link, topic });
+    });
+
+    // Convert topics set to an array
+    topics = Array.from(topics);
+
+    // Update the UI with new candidates and topics
+    populateCandidateCheckboxes(candidates);
+    populateTopicCheckboxes(topics);
+    updateDisplay(candidates, topics);
+}
+
+function populateCandidateCheckboxes(candidates) {
+    const candidateCheckboxesContainer = d3.select("#candidate-checkboxes");
+    candidateCheckboxesContainer.html(''); // Clear existing content
+
+    candidates.forEach(candidate => {
+        const checkboxLabel = candidateCheckboxesContainer.append("label");
+        checkboxLabel.append("input")
+            .attr("type", "checkbox")
+            .attr("value", candidate.name)
+            .on("change", () => updateDisplay(candidates, topics));
+        checkboxLabel.append("span").text(candidate.name);
+        checkboxLabel.append("br");
+    });
+}
+
+function populateTopicCheckboxes(topics) {
+    const topicCheckboxesContainer = d3.select("#topic-checkboxes");
+    topicCheckboxesContainer.html(''); // Clear existing content
+
+    topics.forEach(topic => {
+        const checkboxLabel = topicCheckboxesContainer.append("label");
+        checkboxLabel.append("input")
+            .attr("type", "checkbox")
+            .attr("value", topic)
+            .on("change", () => updateDisplay(candidates, topics));
+        checkboxLabel.append("span").text(topic);
+        checkboxLabel.append("br");
+    });
+}
+
+function updateDisplay(candidates, topics) {
+    const selectedCandidates = [];
+    d3.selectAll("#candidate-checkboxes input:checked").each(function() {
+        selectedCandidates.push(this.value);
+    });
+
+    const selectedTopics = [];
+    d3.selectAll("#topic-checkboxes input:checked").each(function() {
+        selectedTopics.push(this.value);
+    });
+
+    let filteredCandidates = candidates;
+
+    if (selectedCandidates.length > 0) {
+        filteredCandidates = filteredCandidates.filter(candidate => selectedCandidates.includes(candidate.name));
+    }
+
+    d3.select("#economic-growth").selectAll(".candidate-card").remove();
+    d3.select("#social-protection").selectAll(".candidate-card").remove();
+
+    filteredCandidates.forEach(candidate => {
+        const socialProtectionPromises = candidate.promises.filter(p => p.topic === "Social Protection" && (selectedTopics.includes("Social Protection") || selectedTopics.length === 0));
+        const economicGrowthPromises = candidate.promises.filter(p => p.topic === "Economic Growth" && (selectedTopics.includes("Economic Growth") || selectedTopics.length === 0));
+
+        if (socialProtectionPromises.length > 0) {
+            createCandidateCard("#social-protection", candidate, socialProtectionPromises, "social-protection");
+        }
+
+        if (economicGrowthPromises.length > 0) {
+            createCandidateCard("#economic-growth", candidate, economicGrowthPromises, "economic-growth");
+        }
+    });
+
+    if (selectedTopics.includes("Social Protection") || selectedTopics.length === 0) {
+        d3.select("#social-protection-section").classed("hidden", false);
+    } else {
+        d3.select("#social-protection-section").classed("hidden", true);
+    }
+
+    if (selectedTopics.includes("Economic Growth") || selectedTopics.length === 0) {
+        d3.select("#economic-growth-section").classed("hidden", false);
+    } else {
+        d3.select("#economic-growth-section").classed("hidden", true);
+    }
+}
+
+function createCandidateCard(containerId, candidate, promises, promiseClass) {
+    const container = d3.select(containerId).append("div")
+        .attr("class", "candidate-card");
+
+    container.append("img")
+        .attr("src", candidate.image)
+        .attr("alt", candidate.name);
+
+    container.append("div")
+        .attr("class", "party-symbol")
+        .append("img")
+        .attr("src", candidate.partySymbol)
+        .attr("alt", `${candidate.name} party symbol`);
+
+    container.append("h3")
+        .text(candidate.name);
+
+    const promisesContainer = container.append("div")
+        .attr("class", "promises-container");
+
+    promisesContainer.selectAll(".promise")
+        .data(promises)
+        .enter()
+        .append("div")
+        .attr("class", d => `promise ${promiseClass}`)
+        .html(d => `<a href="${d.link}">${d.title} - ${d.page}</a><p>${d.description}</p>`);
+}
+
+// Call the function with the path to your Excel file
+loadExcelFromPath('candidates_data.xlsx');
