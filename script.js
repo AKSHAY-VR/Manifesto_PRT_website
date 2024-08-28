@@ -129,7 +129,7 @@ function populateCandidateCardsSection(candidates) {
 
         candidateCard.append("p")
             .attr("class", "summary-stats")
-            .text(`Rationals per Promise: ${candidate.linkCount}/${candidate.titleCount}`);
+            .text(`Rationales per Promise: ${candidate.linkCount}/${candidate.titleCount}`);
 
         candidateCard.append("div")
             .attr("class", "party-symbol")
@@ -305,7 +305,7 @@ function createOrUpdateCandidateCard(containerId, candidate, promisesByTopic, to
         // Add the "Rationals per Promise" summary right after the candidate's name
         candidateCard.append("p")
             .attr("class", "summary-stats")
-            .text(`Rationals per Promise: 0/0`);  // Placeholder text, updated below
+            .text(`Rationales per Promise: 0/0`);  // Placeholder text, updated below
 
         candidateCard.append("div")
             .attr("class", "party-symbol")
@@ -337,7 +337,7 @@ function createOrUpdateCandidateCard(containerId, candidate, promisesByTopic, to
 
     // Update the "Rationals per Promise" summary for this candidate and topic
     candidateCard.select(".summary-stats")
-        .text(`Rationals per Promise: ${topicLinkCount}/${topicTitleCount}`);
+        .text(`Rationales per Promise: ${topicLinkCount}/${topicTitleCount}`);
 
     // Add or update promises grouped by subtopic
     Object.keys(promisesByTopic).forEach(subtopic => {
