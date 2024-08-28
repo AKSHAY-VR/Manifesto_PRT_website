@@ -1,4 +1,3 @@
-
 let candidates = [];
 let topics = [];
 let topicColors = {};  // Object to store colors for each topic
@@ -35,7 +34,10 @@ function processExcelData(data) {
         const topic = row.topic;
         const subtopic = row.subtopic || ''; // New subtopic column, default to empty string if not provided
 
-        topics.add(topic); // Add topic to the set (duplicates are automatically handled)
+        // Only add valid titles (not N/A) to the title count
+        if (title !== "-" && title.trim() !== "") {
+            topics.add(topic); // Add topic to the set (duplicates are automatically handled)
+        }
 
         let candidate = candidates.find(c => c.name === candidateName);
         if (!candidate) {
@@ -43,9 +45,21 @@ function processExcelData(data) {
                 name: candidateName,
                 image: image,
                 partySymbol: partySymbol,
-                promises: {}
+                promises: {},
+                titleCount: 0, // Initialize title count
+                linkCount: 0   // Initialize link count
             };
             candidates.push(candidate);
+        }
+
+        // Increment the title count only for valid titles
+        if (title !== "-" && title.trim() !== "") {
+            candidate.titleCount++;
+        }
+
+        // Increment the link count if a valid link exists
+        if (link && link.trim() !== '') {
+            candidate.linkCount++;
         }
 
         // Initialize topic if it doesn't exist
@@ -62,11 +76,28 @@ function processExcelData(data) {
         candidate.promises[topic][subtopic].push({ title, description, page, link });
     });
 
+    // Sort the subtopics numerically (assuming subtopics are numbers)
+    candidates.forEach(candidate => {
+        Object.keys(candidate.promises).forEach(topic => {
+            const sortedSubtopics = Object.keys(candidate.promises[topic]).sort((a, b) => parseInt(a) - parseInt(b));
+            const sortedPromises = {};
+
+            sortedSubtopics.forEach(subtopic => {
+                sortedPromises[subtopic] = candidate.promises[topic][subtopic];
+            });
+
+            candidate.promises[topic] = sortedPromises;
+        });
+    });
+
     topics = Array.from(topics);
 
     // Assign colors to topics dynamically
     assignColorsToTopics(topics);
     assignColorsToSubtopics(); // Assign colors to subtopics dynamically
+
+    // Populate the new candidate cards section
+    populateCandidateCardsSection(candidates);
 
     // Create sections for each topic
     createSectionsForTopics(topics);
@@ -75,12 +106,62 @@ function processExcelData(data) {
     populateCandidateCheckboxes(candidates);
     populateTopicCheckboxes(topics);
     updateDisplay();
+
+    // Create Fantasy 11 page
+    createFantasy11Page(candidates);
+}
+
+// Function to populate the new candidate cards section
+function populateCandidateCardsSection(candidates) {
+    const candidateCardsContainer = d3.select("#candidate-cards");
+    candidateCardsContainer.html(''); // Clear existing content
+
+    candidates.forEach(candidate => {
+        const candidateCard = candidateCardsContainer.append("div")
+            .attr("class", "new-candidate-card");
+
+        candidateCard.append("img")
+            .attr("src", candidate.image)
+            .attr("alt", candidate.name);
+
+        candidateCard.append("h3")
+            .text(candidate.name);
+
+        candidateCard.append("p")
+            .attr("class", "summary-stats")
+            .text(`Rationals per Promise: ${candidate.linkCount}/${candidate.titleCount}`);
+
+        candidateCard.append("div")
+            .attr("class", "party-symbol")
+            .append("img")
+            .attr("src", candidate.partySymbol)
+            .attr("alt", `${candidate.name} party symbol`);
+    });
+
+    // Ensure all candidate cards have the same width
+    equalizeCandidateCardWidths();
+}
+
+// Function to equalize the width of candidate cards
+function equalizeCandidateCardWidths() {
+    const cards = document.querySelectorAll('.new-candidate-card');
+    let maxWidth = 0;
+
+    cards.forEach(card => {
+        const width = card.getBoundingClientRect().width;
+        if (width > maxWidth) {
+            maxWidth = width;
+        }
+    });
+
+    cards.forEach(card => {
+        card.style.width = `${maxWidth}px`;
+    });
 }
 
 // Function to create sections for each topic
 function createSectionsForTopics(topics) {
     const contentContainer = d3.select("#content");
-    contentContainer.html(''); // Clear existing content
 
     topics.forEach(topic => {
         const topicSection = contentContainer.append("div")
@@ -197,6 +278,9 @@ function updateDisplay() {
             d3.select(sectionId).classed("hidden", false);
         }
     });
+
+    // Equalize heights after updating display
+    equalizePromiseHeights();
 }
 
 // Function to create or update candidate cards with promises grouped by subtopic
@@ -215,18 +299,45 @@ function createOrUpdateCandidateCard(containerId, candidate, promisesByTopic, to
             .attr("src", candidate.image)
             .attr("alt", candidate.name);
 
+        candidateCard.append("h3")
+            .text(candidate.name);
+
+        // Add the "Rationals per Promise" summary right after the candidate's name
+        candidateCard.append("p")
+            .attr("class", "summary-stats")
+            .text(`Rationals per Promise: 0/0`);  // Placeholder text, updated below
+
         candidateCard.append("div")
             .attr("class", "party-symbol")
             .append("img")
             .attr("src", candidate.partySymbol)
             .attr("alt", `${candidate.name} party symbol`);
 
-        candidateCard.append("h3")
-            .text(candidate.name);
-
+        // Create the container for promises
         candidateCard.append("div")
             .attr("class", "promises-container");
     }
+
+    // Calculate topic-specific title and link counts
+    let topicTitleCount = 0;
+    let topicLinkCount = 0;
+
+    Object.keys(promisesByTopic).forEach(subtopic => {
+        const subtopicPromises = promisesByTopic[subtopic];
+
+        subtopicPromises.forEach(promise => {
+            if (promise.title && promise.title.trim() !== "" && promise.title !== "-") {
+                topicTitleCount++;
+            }
+            if (promise.link && promise.link.trim() !== "") {
+                topicLinkCount++;
+            }
+        });
+    });
+
+    // Update the "Rationals per Promise" summary for this candidate and topic
+    candidateCard.select(".summary-stats")
+        .text(`Rationals per Promise: ${topicLinkCount}/${topicTitleCount}`);
 
     // Add or update promises grouped by subtopic
     Object.keys(promisesByTopic).forEach(subtopic => {
@@ -246,15 +357,39 @@ function createOrUpdateCandidateCard(containerId, candidate, promisesByTopic, to
                 .attr("class", `promise ${topicClass}`)
                 .html(`<p class="promise-title">${promise.title}</p><p class="promise-page">Page: ${promise.page}</p><p>${promise.description}</p>`);
 
-            // Add the "Reference" button under each promise if there's a valid link
+            // Add the "Rationale" button under each promise if there's a valid link
             if (promise.link && promise.link.trim() !== '') {
                 promiseContainer.append("button")
                     .attr("class", "reference-button")
-                    .text("Reference")
+                    .text("Rationale")
                     .on("click", () => {
                         window.open(promise.link, '_blank');
                     });
             }
+        });
+    });
+}
+
+// Function to equalize the height of promise containers within each topic
+function equalizePromiseHeights() {
+    topics.forEach(topic => {
+        const promiseContainers = d3.select(`#${topic.toLowerCase().replace(/\s+/g, '-')}`)
+                                    .selectAll('.promise-container')
+                                    .nodes();
+
+        let maxHeight = 0;
+
+        // Calculate the maximum height of promise containers within this topic
+        promiseContainers.forEach(container => {
+            const height = container.getBoundingClientRect().height;
+            if (height > maxHeight) {
+                maxHeight = height;
+            }
+        });
+
+        // Set the maximum height for all promise containers within this topic
+        promiseContainers.forEach(container => {
+            container.style.height = `${maxHeight}px`;
         });
     });
 }
@@ -300,10 +435,122 @@ function generateRandomColor() {
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
+// Add event listener to close checkboxes when clicking outside the filter container
+document.addEventListener("click", function(event) {
+    const filterContainer = document.querySelector(".filter-container");
+    if (!filterContainer.contains(event.target)) {
+        closeAllCheckboxes();
+    }
+});
+
+// Function to close all checkboxes
+function closeAllCheckboxes() {
+    document.querySelectorAll(".checkboxes").forEach(checkboxContainer => {
+        checkboxContainer.style.display = "none";
+    });
+}
+
+// Modify the existing toggleCheckboxes function to close other checkboxes when opening a new one
 function toggleCheckboxes(id) {
     const checkboxes = document.getElementById(id);
-    checkboxes.style.display = checkboxes.style.display === "block" ? "none" : "block";
+    if (checkboxes.style.display === "block") {
+        checkboxes.style.display = "none";
+    } else {
+        closeAllCheckboxes();  // Close all other checkboxes
+        checkboxes.style.display = "block";
+    }
 }
+
+// Function to display the Manifesto Promises page
+function showManifestoPage() {
+    document.getElementById('content').style.display = 'block'; // Show the original content
+    document.getElementById('fantasy11-content').style.display = 'none'; // Hide Fantasy 11 content
+}
+
+// Function to display the Fantasy 11 page
+function showFantasy11Page() {
+    document.getElementById('content').style.display = 'none'; // Hide the original content
+    document.getElementById('fantasy11-content').style.display = 'block'; // Show Fantasy 11 content
+}
+
+// Function to create the Fantasy 11 page content
+function createFantasy11Page(candidates) {
+    const fantasyContainer = d3.select("#fantasy-candidates-container");
+    fantasyContainer.html(''); // Clear any existing content
+
+    candidates.forEach(candidate => {
+        const candidateContainer = fantasyContainer.append("div")
+            .attr("class", "fantasy-candidate-container");
+
+        candidateContainer.append("h3")
+            .attr("class", "fantasy-candidate-title")
+            .text(candidate.name);
+
+        // Iterate over each topic for the candidate
+        Object.keys(candidate.promises).forEach(topic => {
+            const subtopics = candidate.promises[topic];
+            Object.keys(subtopics).forEach(subtopic => {
+                const promises = subtopics[subtopic];
+
+                // Add promises as selectable options
+                promises.forEach(promise => {
+                    const promiseContainer = candidateContainer.append("div")
+                        .attr("class", "fantasy-promise");
+
+                    promiseContainer.append("input")
+                        .attr("type", "checkbox")
+                        .attr("value", promise.title);
+
+                    promiseContainer.append("label")
+                        .text(`${promise.title} - Page: ${promise.page}`);
+                });
+            });
+        });
+    });
+}
+
+// Function to display the pop-up with three boxes
+function showEmptyBoxes() {
+    const modal = document.getElementById("popup-modal");
+    modal.style.display = "block"; // Show the modal
+}
+
+// Function to close the pop-up modal
+function closePopup() {
+    const modal = document.getElementById("popup-modal");
+    modal.style.display = "none"; // Hide the modal
+}
+
+document.querySelectorAll('.selectBox').forEach(selectBox => {
+    const checkboxes = selectBox.nextElementSibling;
+ 
+    // When the selectBox is hovered, show the dropdown
+    selectBox.addEventListener('mouseover', () => {
+        checkboxes.style.display = 'block';
+    });
+ 
+    // When the cursor leaves both the selectBox and the checkboxes, hide the dropdown
+    selectBox.addEventListener('mouseleave', () => {
+        checkboxes.style.display = 'none';
+    });
+ 
+    checkboxes.addEventListener('mouseleave', () => {
+        checkboxes.style.display = 'none';
+    });
+ 
+    // Keep the dropdown open when hovering over the checkboxes
+    checkboxes.addEventListener('mouseover', () => {
+        checkboxes.style.display = 'block';
+    });
+ 
+    // If clicking outside of the selectBox and checkboxes, do nothing (prevent focus loss issue)
+    document.addEventListener('click', (event) => {
+        if (!selectBox.contains(event.target) && !checkboxes.contains(event.target)) {
+            // Do nothing, allowing the hover to re-trigger when hovering back over the selectBox
+        }
+    });
+});
+
 
 // Load the Excel file from the Google Sheets URL
 loadExcelFromGoogleSheet('https://docs.google.com/spreadsheets/d/1_q6IaRErhJnPM_pTwiI7pGvOTJ4PJJRMTaz4zr-rmio/export?format=xlsx'); // Replace with the actual Google Sheets URL in export format
